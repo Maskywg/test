@@ -69,9 +69,9 @@
     <!-- 3D 背景容器 -->
     <div id="canvas-container"></div>
 
-    <!-- 背景音樂 (隱藏) -->
+    <!-- 背景音樂 -->
     <audio id="bg-music" loop>
-        <!-- 這裡預設指向 local 檔案，若無檔案將無法播放 -->
+        <!-- 還原為 local 檔案路徑 -->
         <source src="audio/lovelykids.mp3" type="audio/mpeg">
     </audio>
 
@@ -330,13 +330,14 @@
                             <i class="fas fa-folder-open mr-1"></i> 活動紀錄檔案
                         </h4>
                         
-                        <!-- 報導音檔 -->
+                        <!-- 報導音檔 (還原為 local 檔案) -->
                         <div class="mb-4">
                             <div class="flex items-center gap-2 mb-1">
                                 <i class="fas fa-headphones text-amber-600 text-sm"></i>
                                 <span class="text-sm text-gray-700 font-medium">實況報導錄音</span>
                             </div>
                             <audio controls class="w-full h-8">
+                                <!-- 還原為 local 檔案路徑 -->
                                 <source src="audio/report.m4a" type="audio/mp4">
                                 您的瀏覽器不支援音訊播放元素。
                             </audio>
@@ -348,12 +349,22 @@
                                 <i class="fas fa-photo-video text-amber-600 text-sm"></i>
                                 <span class="text-sm text-gray-700 font-medium">活動回顧投影片</span>
                             </div>
-                            <div class="relative w-full bg-black rounded-lg overflow-hidden border border-gray-200 shadow-sm">
+                            <div class="relative w-full bg-black rounded-lg overflow-hidden border border-gray-200 shadow-sm mb-3">
                                 <video controls class="w-full h-auto block" preload="metadata">
                                     <source src="vedeo/ppt.mp4" type="video/mp4">
                                     您的瀏覽器不支援影片播放標籤。
                                 </video>
                             </div>
+                        </div>
+
+                        <!-- 新增：雲端連結按鈕 -->
+                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-2 border-t border-amber-200 pt-3 mt-2">
+                            <a href="https://drive.google.com/file/d/1NA5pXwCrAw_fgaZuIsQmRLDeVQe3MhBw/view?usp=sharing" target="_blank" class="flex items-center justify-center gap-2 px-3 py-2 bg-white border border-gray-300 rounded-md text-sm text-gray-700 hover:bg-amber-600 hover:text-white hover:border-amber-600 transition-all shadow-sm group">
+                                <i class="fas fa-cloud-download-alt text-amber-500 group-hover:text-white"></i> 實況報導錄音
+                            </a>
+                            <a href="https://docs.google.com/videos/d/1PI2Thhy0kiaNiZiAvf_ZFRS5nIh65l_WAOcXeSFN2XM/edit?usp=sharing" target="_blank" class="flex items-center justify-center gap-2 px-3 py-2 bg-white border border-gray-300 rounded-md text-sm text-gray-700 hover:bg-red-600 hover:text-white hover:border-red-600 transition-all shadow-sm group">
+                                <i class="fas fa-play-circle text-red-500 group-hover:text-white"></i> 線上觀看回顧
+                            </a>
                         </div>
                     </div>
 
