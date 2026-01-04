@@ -1,0 +1,621 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>台中探師同學會 - 照片位置紀錄</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <!-- 引入 Three.js 用於 3D 背景 -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@300;400;500;700&display=swap');
+        body {
+            font-family: 'Noto Sans TC', sans-serif;
+            /* 改為漸層背景，增加 3D 空間的深度感 */
+            background: linear-gradient(180deg, #fdfbf7 0%, #f0e4d4 100%);
+            margin: 0;
+            overflow-x: hidden;
+            min-height: 100vh;
+        }
+        
+        /* 3D 背景畫布設定 */
+        #canvas-container {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: -1; /* 確保在內容後方 */
+            pointer-events: none; /* 讓滑鼠事件穿透 */
+        }
+
+        .photo-placeholder {
+            background-color: #f3f4f6;
+            background-image: url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%23e5e7eb' fill-opacity='0.4'%3E%3Cpath d='M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E");
+        }
+        /* 自定義滾動條 */
+        ::-webkit-scrollbar {
+            width: 8px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #f1f1f1; 
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #d1d5db; 
+            border-radius: 4px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #9ca3af; 
+        }
+        
+        /* 圖片放大預覽時的樣式 */
+        .zoom-img {
+            cursor: zoom-in;
+        }
+
+        /* 音樂控制按鈕動畫 */
+        @keyframes spin-slow {
+            from { transform: rotate(0deg); }
+            to { transform: rotate(360deg); }
+        }
+        .music-playing i {
+            animation: spin-slow 4s linear infinite;
+        }
+    </style>
+</head>
+<body class="text-gray-700 relative">
+
+    <!-- 3D 背景容器 -->
+    <div id="canvas-container"></div>
+
+    <!-- 背景音樂 (隱藏) -->
+    <audio id="bg-music" loop>
+        <!-- 這裡預設指向 local 檔案，若無檔案將無法播放 -->
+        <source src="audio/lovelykids.mp3" type="audio/mpeg">
+    </audio>
+
+    <!-- 進入畫面遮罩 (Entry Overlay) -->
+    <div id="entry-overlay" class="fixed inset-0 z-[200] bg-stone-100 flex flex-col items-center justify-center transition-opacity duration-1000">
+        <div class="text-center p-8 bg-white/50 backdrop-blur-md rounded-2xl shadow-xl border border-stone-200 max-w-md mx-4">
+            <h1 class="text-3xl font-bold text-amber-800 mb-4 tracking-wider">台中探師同學會</h1>
+            <p class="text-gray-600 mb-8 leading-relaxed">
+                一段跨越時空的師生情誼<br>
+                點擊下方按鈕，開啟這趟回憶之旅
+            </p>
+            <button id="enter-btn" class="group relative px-8 py-3 bg-amber-600 hover:bg-amber-700 text-white rounded-full transition-all duration-300 shadow-lg hover:shadow-amber-500/30 overflow-hidden">
+                <span class="relative z-10 flex items-center gap-2 font-medium tracking-wide">
+                    <i class="fas fa-door-open"></i> 進入回憶之旅
+                </span>
+            </button>
+            <p class="text-xs text-gray-400 mt-4">(將自動播放背景音樂)</p>
+        </div>
+    </div>
+
+    <!-- 音樂控制懸浮按鈕 -->
+    <button id="music-toggle" class="hidden fixed bottom-6 right-6 z-[90] w-12 h-12 bg-white/80 backdrop-blur text-amber-600 rounded-full shadow-lg border border-amber-100 items-center justify-center hover:bg-amber-50 transition-all duration-300 hover:scale-110" title="暫停/播放音樂">
+        <i class="fas fa-music text-lg"></i>
+    </button>
+
+    <!-- Header -->
+    <header class="bg-amber-800/90 backdrop-blur-sm text-white sticky top-0 z-50 shadow-md">
+        <div class="container mx-auto px-4 py-4 flex justify-between items-center">
+            <h1 class="text-xl font-bold flex items-center gap-2">
+                <i class="fas fa-camera-retro"></i> 台中探師同學會
+            </h1>
+            <span class="text-sm bg-amber-900 px-3 py-1 rounded-full">活動實況報導</span>
+        </div>
+    </header>
+
+    <!-- Intro -->
+    <div class="bg-white/80 backdrop-blur-sm border-b">
+        <div class="container mx-auto px-4 py-10 text-center">
+            <h2 class="text-3xl font-bold text-gray-800 mb-6">【台中探師之旅：跨越時空的師生情】</h2>
+            
+            <div class="max-w-3xl mx-auto text-left space-y-4 text-gray-700 leading-relaxed text-lg bg-white/50 p-6 rounded-xl shadow-sm border border-stone-100">
+                <p>
+                    一月三日，一場溫馨的師生重聚在台中展開。上午十點，台北出發的同學們抵達台中，與前一晚便開了六小時車從台東趕抵的 陳佳琳、以及從竹北南下的王鍵元順利會合。大家相約在「August Food Studio」共進午餐，住在台中的蔡復笙 與席間從苗栗趕到的蘇太乙一家也陸續加入，老同學好久不見，場面熱鬧溫馨。
+                </p>
+                <p>
+                    午餐結束後，一行人前往王珠蓮老師的住處拜訪。見到久違的學生們，老師難掩興奮之情。為了讓這次聚會更圓滿，大家利用視訊設備，與遠在美國的陳懷之、譚肖龍連線，同時也讓當天無法到場的鄭舒倖與蔡耀煌透過螢幕參與，讓這份情誼跨越了距離。在三樓的會客室中，老師堅持招待大家喝飲料，師生們暢聊往事，不知不覺便聊到了下午四點半，直到大家必須趕搭高鐵才依依不捨地道別。
+                </p>
+                <p>
+                    王珠蓮老師是帶領我們這一班四年的首任導師，對大家的人生發展影響深遠。儘管老師在行動上已有些許限制，但精神依舊矍鑠，記憶力更是清晰如昔。能與恩師共度午後時光，是人生一大樂事。老師更與大家許下約定，希望明年大家能再來台中，由他作東請大家聚餐，延續這份難得的師生緣分。
+                </p>
+            </div>
+
+        </div>
+    </div>
+
+    <!-- Photo Locations Grid -->
+    <main class="container mx-auto px-4 py-8 relative z-10">
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
+
+            <!-- Location 1: 出發 -->
+            <div class="bg-white/90 backdrop-blur-sm rounded-xl shadow-lg overflow-hidden border border-gray-100 flex flex-col transition hover:shadow-xl">
+                <div class="p-4 border-b bg-amber-50/80 flex justify-between items-center">
+                    <div class="flex items-center gap-2">
+                        <span class="bg-amber-600 text-white w-8 h-8 flex items-center justify-center rounded-full font-bold">1</span>
+                        <h3 class="font-bold text-lg text-gray-800">出發</h3>
+                    </div>
+                    <span class="text-xs text-gray-500"><i class="fas fa-clock mr-1"></i>集合時刻</span>
+                </div>
+                
+                <!-- Photo Display Area (1 Photo) -->
+                <div class="relative w-full h-64 bg-gray-100 photo-placeholder flex items-center justify-center overflow-hidden">
+                    <!-- Photo 1: Updated with Google Content URL -->
+                    <img src="https://lh3.googleusercontent.com/d/1PJN77djNrlTfXnxPGQwZ1_z_IpQrWcAr" class="zoom-img absolute inset-0 w-full h-full object-cover transition duration-500 hover:scale-105" alt="出發照片" onerror="this.onerror=null; this.src='https://placehold.co/600x400?text=圖片無法載入';">
+                </div>
+
+                <div class="p-5 flex-grow">
+                    <p class="text-gray-600 mb-3">
+                        <span class="font-bold">情境：</span>旅程的開始，台北出發一行人到達台中的時刻。
+                    </p>
+                </div>
+            </div>
+
+            <!-- Location 2: August Food Studio -->
+            <div class="bg-white/90 backdrop-blur-sm rounded-xl shadow-lg overflow-hidden border border-gray-100 flex flex-col md:col-span-2 transition hover:shadow-xl">
+                <div class="p-4 border-b bg-amber-50/80 flex justify-between items-center">
+                    <div class="flex items-center gap-2">
+                        <span class="bg-amber-600 text-white w-8 h-8 flex items-center justify-center rounded-full font-bold">2</span>
+                        <h3 class="font-bold text-lg text-gray-800">August Food Studio</h3>
+                    </div>
+                    <span class="text-xs text-gray-500"><i class="fas fa-clock mr-1"></i>午餐時段</span>
+                </div>
+                
+                <!-- 6 Photos Grid (Images 2-7) -->
+                <div class="grid grid-cols-2 md:grid-cols-3 gap-1 bg-gray-200 p-1">
+                    <div class="relative h-48 bg-gray-100 photo-placeholder flex items-center justify-center overflow-hidden">
+                        <img src="https://lh3.googleusercontent.com/d/1V_MhhSooPrU1S6U601C7ijT8RYNj5ITA" class="zoom-img absolute inset-0 w-full h-full object-cover transition duration-500 hover:scale-105" onerror="this.onerror=null; this.src='https://placehold.co/600x400?text=2.png';">
+                    </div>
+                    <div class="relative h-48 bg-gray-100 photo-placeholder flex items-center justify-center overflow-hidden">
+                        <img src="https://lh3.googleusercontent.com/d/1jou0dZesJC7hy7NX-Zu6lkSLTNsvqDPD" class="zoom-img absolute inset-0 w-full h-full object-cover transition duration-500 hover:scale-105" onerror="this.onerror=null; this.src='https://placehold.co/600x400?text=3.png';">
+                    </div>
+                    <div class="relative h-48 bg-gray-100 photo-placeholder flex items-center justify-center overflow-hidden">
+                        <img src="https://lh3.googleusercontent.com/d/1f_PQlB9gQHQvWgtYQ5EgpaTWb-RlS4BI" class="zoom-img absolute inset-0 w-full h-full object-cover transition duration-500 hover:scale-105" onerror="this.onerror=null; this.src='https://placehold.co/600x400?text=4.png';">
+                    </div>
+                    <div class="relative h-48 bg-gray-100 photo-placeholder flex items-center justify-center overflow-hidden">
+                        <img src="https://lh3.googleusercontent.com/d/1q1PQS1SlrQTTSC2B9qbc6S7GfD5kri0q" class="zoom-img absolute inset-0 w-full h-full object-cover transition duration-500 hover:scale-105" onerror="this.onerror=null; this.src='https://placehold.co/600x400?text=5.png';">
+                    </div>
+                    <div class="relative h-48 bg-gray-100 photo-placeholder flex items-center justify-center overflow-hidden">
+                        <img src="https://lh3.googleusercontent.com/d/1ZL8AyLE7GS-rmMQjQfU5b-bMS_LyrJsE" class="zoom-img absolute inset-0 w-full h-full object-cover transition duration-500 hover:scale-105" onerror="this.onerror=null; this.src='https://placehold.co/600x400?text=6.png';">
+                    </div>
+                    <div class="relative h-48 bg-gray-100 photo-placeholder flex items-center justify-center overflow-hidden">
+                        <img src="https://lh3.googleusercontent.com/d/1buOTwIUdmAQF5YsIHpb1zwkcSbvN6KGq" class="zoom-img absolute inset-0 w-full h-full object-cover transition duration-500 hover:scale-105" onerror="this.onerror=null; this.src='https://placehold.co/600x400?text=7.png';">
+                    </div>
+                </div>
+
+                <div class="p-5 flex-grow">
+                    <p class="text-gray-600 mb-3">
+                        <span class="font-bold">情境：</span>大家在餐廳用餐聊往事與現況，並進行大合照。隨後與蘇太乙全家會合。
+                    </p>
+                    <div class="flex items-center text-sm text-gray-400 bg-gray-50 p-2 rounded">
+                        <i class="fas fa-map-marker-alt text-red-500 mr-2"></i> 台中市西區英才路
+                    </div>
+                </div>
+            </div>
+
+            <!-- Location 3: 老師家門口 -->
+            <div class="bg-white/90 backdrop-blur-sm rounded-xl shadow-lg overflow-hidden border border-gray-100 flex flex-col transition hover:shadow-xl">
+                <div class="p-4 border-b bg-amber-50/80 flex justify-between items-center">
+                    <div class="flex items-center gap-2">
+                        <span class="bg-amber-600 text-white w-8 h-8 flex items-center justify-center rounded-full font-bold">3</span>
+                        <h3 class="font-bold text-lg text-gray-800">王珠蓮老師家門口</h3>
+                    </div>
+                    <span class="text-xs text-gray-500"><i class="fas fa-clock mr-1"></i>抵達時刻</span>
+                </div>
+                
+                <!-- 3 Photos Grid (Images 8-10) -->
+                <div class="grid grid-cols-3 gap-1 bg-gray-200 p-1 h-64">
+                    <div class="relative bg-gray-100 photo-placeholder flex items-center justify-center overflow-hidden h-full">
+                        <img src="https://lh3.googleusercontent.com/d/10ntEH2dTWSvl93iSKVrgTIhz96iv0eJL" class="zoom-img absolute inset-0 w-full h-full object-cover transition duration-500 hover:scale-105" onerror="this.onerror=null; this.src='https://placehold.co/600x400?text=8.png';">
+                    </div>
+                    <div class="relative bg-gray-100 photo-placeholder flex items-center justify-center overflow-hidden h-full">
+                        <img src="https://lh3.googleusercontent.com/d/1MaWiCURtZuNQyFgzRDs2vBC6Iwe5hgJh" class="zoom-img absolute inset-0 w-full h-full object-cover transition duration-500 hover:scale-105" onerror="this.onerror=null; this.src='https://placehold.co/600x400?text=9.png';">
+                    </div>
+                    <div class="relative bg-gray-100 photo-placeholder flex items-center justify-center overflow-hidden h-full">
+                        <img src="https://lh3.googleusercontent.com/d/1ImR8mo_iPZJHJWt9bgFGABRjKb65axhe" class="zoom-img absolute inset-0 w-full h-full object-cover transition duration-500 hover:scale-105" onerror="this.onerror=null; this.src='https://placehold.co/600x400?text=10.png';">
+                    </div>
+                </div>
+
+                <div class="p-5 flex-grow">
+                    <p class="text-gray-600 mb-3">
+                        <span class="font-bold">情境：</span>抵達老師家，門口溫馨迎接的畫面。
+                    </p>
+                    <div class="flex items-center text-sm text-gray-400 bg-gray-50 p-2 rounded">
+                        <i class="fas fa-home text-red-500 mr-2"></i> 老師家一樓/大門
+                    </div>
+                </div>
+            </div>
+
+            <!-- Location 4: 老師家室內 -->
+            <div class="bg-white/90 backdrop-blur-sm rounded-xl shadow-lg overflow-hidden border border-gray-100 flex flex-col md:col-span-2 transition hover:shadow-xl">
+                <div class="p-4 border-b bg-amber-50/80 flex justify-between items-center">
+                    <div class="flex items-center gap-2">
+                        <span class="bg-amber-600 text-white w-8 h-8 flex items-center justify-center rounded-full font-bold">4</span>
+                        <h3 class="font-bold text-lg text-gray-800">老師家 (室內互動)</h3>
+                    </div>
+                    <span class="text-xs text-gray-500"><i class="fas fa-clock mr-1"></i>入內敘舊</span>
+                </div>
+                
+                <!-- 8 Photos Grid (Images 11-18) -->
+                <div class="grid grid-cols-2 md:grid-cols-4 gap-1 bg-gray-200 p-1">
+                    <div class="relative h-40 bg-gray-100 photo-placeholder flex items-center justify-center overflow-hidden">
+                        <img src="https://lh3.googleusercontent.com/d/1xjmm3-gaUY6HgEyVKFdxLBrbLqLzngM0" class="zoom-img absolute inset-0 w-full h-full object-cover transition duration-500 hover:scale-105" onerror="this.onerror=null; this.src='https://placehold.co/600x400?text=11.png';">
+                    </div>
+                    <div class="relative h-40 bg-gray-100 photo-placeholder flex items-center justify-center overflow-hidden">
+                        <img src="https://lh3.googleusercontent.com/d/12w4dslp9_tMi_iND1W7JArQ-Zz9bIYNF" class="zoom-img absolute inset-0 w-full h-full object-cover transition duration-500 hover:scale-105" onerror="this.onerror=null; this.src='https://placehold.co/600x400?text=12.png';">
+                    </div>
+                    <div class="relative h-40 bg-gray-100 photo-placeholder flex items-center justify-center overflow-hidden">
+                        <img src="https://lh3.googleusercontent.com/d/15ge7XcCj2tFcr8rXlsQD2NRFrU_OscKl" class="zoom-img absolute inset-0 w-full h-full object-cover transition duration-500 hover:scale-105" onerror="this.onerror=null; this.src='https://placehold.co/600x400?text=13.png';">
+                    </div>
+                    <div class="relative h-40 bg-gray-100 photo-placeholder flex items-center justify-center overflow-hidden">
+                        <img src="https://lh3.googleusercontent.com/d/1SXJmhpAEO7_8P_4uf9SuJJhMuLPwzVMG" class="zoom-img absolute inset-0 w-full h-full object-cover transition duration-500 hover:scale-105" onerror="this.onerror=null; this.src='https://placehold.co/600x400?text=14.png';">
+                    </div>
+                    <div class="relative h-40 bg-gray-100 photo-placeholder flex items-center justify-center overflow-hidden">
+                        <img src="https://lh3.googleusercontent.com/d/1Xc_LG5zCNZda719yaYoT08dRbv4K6Rzj" class="zoom-img absolute inset-0 w-full h-full object-cover transition duration-500 hover:scale-105" onerror="this.onerror=null; this.src='https://placehold.co/600x400?text=15.png';">
+                    </div>
+                    <div class="relative h-40 bg-gray-100 photo-placeholder flex items-center justify-center overflow-hidden">
+                        <img src="https://lh3.googleusercontent.com/d/1wIuheaagA5eE0spuWPqiNhxRtxfzprXd" class="zoom-img absolute inset-0 w-full h-full object-cover transition duration-500 hover:scale-105" onerror="this.onerror=null; this.src='https://placehold.co/600x400?text=16.png';">
+                    </div>
+                    <div class="relative h-40 bg-gray-100 photo-placeholder flex items-center justify-center overflow-hidden">
+                        <img src="https://lh3.googleusercontent.com/d/1_9Hi2gFcJKnHuLU6cwL9CzFQ03QczUwL" class="zoom-img absolute inset-0 w-full h-full object-cover transition duration-500 hover:scale-105" onerror="this.onerror=null; this.src='https://placehold.co/600x400?text=17.png';">
+                    </div>
+                    <div class="relative h-40 bg-gray-100 photo-placeholder flex items-center justify-center overflow-hidden">
+                        <img src="https://lh3.googleusercontent.com/d/1ixNlGaIf42KD8BiRJRwkWYjizPCBfz83" class="zoom-img absolute inset-0 w-full h-full object-cover transition duration-500 hover:scale-105" onerror="this.onerror=null; this.src='https://placehold.co/600x400?text=18.png';">
+                    </div>
+                </div>
+
+                <div class="p-5 flex-grow">
+                    <p class="text-gray-600 mb-3">
+                        <span class="font-bold">情境：</span>進門後的溫馨時光。客廳寒暄、參觀擺設、分組閒聊的特寫鏡頭。與陳懷之、譚肖龍、鄭舒倖、蔡耀煌進行視訊通話。
+                    </p>
+                    <div class="flex items-center text-sm text-gray-400 bg-gray-50 p-2 rounded">
+                        <i class="fas fa-couch text-red-500 mr-2"></i> 老師家客廳/室內
+                    </div>
+                </div>
+            </div>
+
+            <!-- Location 5: 3樓交誼廳 -->
+            <div class="bg-white/90 backdrop-blur-sm rounded-xl shadow-lg overflow-hidden border border-gray-100 flex flex-col transition hover:shadow-xl">
+                <div class="p-4 border-b bg-amber-50/80 flex justify-between items-center">
+                    <div class="flex items-center gap-2">
+                        <span class="bg-amber-600 text-white w-8 h-8 flex items-center justify-center rounded-full font-bold">5</span>
+                        <h3 class="font-bold text-lg text-gray-800">3樓交誼廳</h3>
+                    </div>
+                    <span class="text-xs text-gray-500"><i class="fas fa-clock mr-1"></i>下午茶敘</span>
+                </div>
+                
+                <!-- 2 Photos Grid (Images 19-20) -->
+                <div class="grid grid-cols-2 gap-1 bg-gray-200 p-1">
+                    <div class="relative bg-gray-100 photo-placeholder flex items-center justify-center overflow-hidden w-full aspect-video">
+                        <img src="https://lh3.googleusercontent.com/d/1XR7S54XyFfaK4Ptr6FgrsbojQd-b8x4U" class="zoom-img absolute inset-0 w-full h-full object-cover transition duration-500 hover:scale-105" onerror="this.onerror=null; this.src='https://placehold.co/600x400?text=19.png';">
+                    </div>
+                    <div class="relative bg-gray-100 photo-placeholder flex items-center justify-center overflow-hidden w-full aspect-video">
+                        <img src="https://lh3.googleusercontent.com/d/1_yv73xp5rv6Kw_lKJrGYO-oR2YbNsYVm" class="zoom-img absolute inset-0 w-full h-full object-cover transition duration-500 hover:scale-105" onerror="this.onerror=null; this.src='https://placehold.co/600x400?text=20.png';">
+                    </div>
+                </div>
+
+                <div class="p-5 flex-grow">
+                    <p class="text-gray-600 mb-3">
+                        <span class="font-bold">情境：</span>老師請喝飲料，氣氛輕鬆。
+                    </p>
+                    <div class="flex items-center text-sm text-gray-400 bg-gray-50 p-2 rounded">
+                        <i class="fas fa-video text-red-500 mr-2"></i> 老師家三樓
+                    </div>
+                </div>
+            </div>
+
+            <!-- Location 6: 賦歸 -->
+            <div class="bg-white/90 backdrop-blur-sm rounded-xl shadow-lg overflow-hidden border border-gray-100 flex flex-col transition hover:shadow-xl">
+                <div class="p-4 border-b bg-amber-50/80 flex justify-between items-center">
+                    <div class="flex items-center gap-2">
+                        <span class="bg-amber-600 text-white w-8 h-8 flex items-center justify-center rounded-full font-bold">6</span>
+                        <h3 class="font-bold text-lg text-gray-800">賦歸 / 趕高鐵</h3>
+                    </div>
+                    <span class="text-xs text-gray-500"><i class="fas fa-clock mr-1"></i>下午 4:30 後</span>
+                </div>
+                
+                <!-- Image 21 removed -->
+
+                <div class="p-5 flex-grow">
+                    <p class="text-gray-600 mb-3">
+                        <span class="font-bold">情境：</span>依依不捨地告別。
+                    </p>
+
+                    <!-- 新增：多媒體資源區塊 -->
+                    <div class="mb-4 p-3 bg-amber-50 rounded-lg border border-amber-100">
+                        <h4 class="text-sm font-bold text-amber-800 mb-2 border-b border-amber-200 pb-1">
+                            <i class="fas fa-folder-open mr-1"></i> 活動紀錄檔案
+                        </h4>
+                        
+                        <!-- 報導音檔 -->
+                        <div class="mb-4">
+                            <div class="flex items-center gap-2 mb-1">
+                                <i class="fas fa-headphones text-amber-600 text-sm"></i>
+                                <span class="text-sm text-gray-700 font-medium">實況報導錄音</span>
+                            </div>
+                            <audio controls class="w-full h-8">
+                                <source src="audio/report.m4a" type="audio/mp4">
+                                您的瀏覽器不支援音訊播放元素。
+                            </audio>
+                        </div>
+
+                        <!-- 影片播放 (取代原本的 PDF) -->
+                        <div>
+                            <div class="flex items-center gap-2 mb-2">
+                                <i class="fas fa-photo-video text-amber-600 text-sm"></i>
+                                <span class="text-sm text-gray-700 font-medium">活動回顧投影片</span>
+                            </div>
+                            <div class="relative w-full bg-black rounded-lg overflow-hidden border border-gray-200 shadow-sm">
+                                <video controls class="w-full h-auto block" preload="metadata">
+                                    <source src="vedeo/ppt.mp4" type="video/mp4">
+                                    您的瀏覽器不支援影片播放標籤。
+                                </video>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="flex items-center text-sm text-gray-400 bg-gray-50 p-2 rounded">
+                        <i class="fas fa-car-side text-red-500 mr-2"></i> 老師家門口 / 台中高鐵
+                    </div>
+                </div>
+            </div>
+
+        </div>
+
+        <!-- Participants Summary -->
+        <div class="mt-12 bg-white/90 backdrop-blur-sm rounded-xl p-6 shadow-sm border border-gray-200 relative z-10">
+            <h3 class="font-bold text-gray-800 mb-4 flex items-center">
+                <i class="fas fa-users text-amber-600 mr-2"></i> 
+                參與人員紀錄
+            </h3>
+            <div class="flex flex-wrap gap-2">
+                <span class="px-3 py-1 bg-gray-100 rounded-full text-sm text-gray-700">台北同學群 (陳彥良、鄒大智、張佳韻、王益暉)</span>
+                <span class="px-3 py-1 bg-gray-100 rounded-full text-sm text-gray-700">陳佳琳 (台東)</span>
+                <span class="px-3 py-1 bg-gray-100 rounded-full text-sm text-gray-700">王鍵元 (竹北)</span>
+                <span class="px-3 py-1 bg-gray-100 rounded-full text-sm text-gray-700">蘇太乙全家 (苗栗旅遊)</span>
+                <span class="px-3 py-1 bg-gray-100 rounded-full text-sm text-gray-700">林老師 (蘇太乙母親)</span>
+                <span class="px-3 py-1 bg-gray-100 rounded-full text-sm text-gray-700">蔡復笙 (台中)</span>
+                <span class="px-3 py-1 bg-blue-50 text-blue-700 rounded-full text-sm border border-blue-100"><i class="fas fa-video mr-1"></i>陳懷之</span>
+                <span class="px-3 py-1 bg-blue-50 text-blue-700 rounded-full text-sm border border-blue-100"><i class="fas fa-video mr-1"></i>譚肖龍</span>
+                <span class="px-3 py-1 bg-blue-50 text-blue-700 rounded-full text-sm border border-blue-100"><i class="fas fa-video mr-1"></i>鄭舒倖</span>
+                <span class="px-3 py-1 bg-blue-50 text-blue-700 rounded-full text-sm border border-blue-100"><i class="fas fa-video mr-1"></i>蔡耀煌</span>
+            </div>
+        </div>
+    </main>
+
+    <footer class="bg-gray-800 text-gray-400 py-6 text-center text-sm mt-8 relative z-10">
+        <p>&copy; 小愛同學會</p>
+    </footer>
+
+    <!-- Three.js Dandelion Animation & Lightbox Script -->
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            const container = document.getElementById('canvas-container');
+            const bgMusic = document.getElementById('bg-music');
+            const entryOverlay = document.getElementById('entry-overlay');
+            const enterBtn = document.getElementById('enter-btn');
+            const musicToggle = document.getElementById('music-toggle');
+            
+            // ----------------------------------------------------
+            // 0. 音樂控制邏輯
+            // ----------------------------------------------------
+            
+            // 點擊進入按鈕：隱藏遮罩並播放音樂
+            enterBtn.addEventListener('click', () => {
+                entryOverlay.style.opacity = '0';
+                setTimeout(() => {
+                    entryOverlay.style.display = 'none';
+                    // 顯示音樂控制按鈕
+                    musicToggle.classList.remove('hidden');
+                    musicToggle.classList.add('flex');
+                }, 1000); // 等待淡出動畫結束
+
+                // 播放音樂
+                bgMusic.play().then(() => {
+                    musicToggle.classList.add('music-playing');
+                    musicToggle.innerHTML = '<i class="fas fa-pause text-lg"></i>';
+                }).catch(error => {
+                    console.log("Autoplay prevented or failed (File missing or browser policy):", error);
+                    musicToggle.innerHTML = '<i class="fas fa-play text-lg pl-1"></i>';
+                });
+            });
+
+            // 音樂開關按鈕
+            musicToggle.addEventListener('click', () => {
+                if (bgMusic.paused) {
+                    bgMusic.play().then(() => {
+                        musicToggle.classList.add('music-playing');
+                        musicToggle.innerHTML = '<i class="fas fa-pause text-lg"></i>';
+                    }).catch(e => console.log(e));
+                } else {
+                    bgMusic.pause();
+                    musicToggle.classList.remove('music-playing');
+                    musicToggle.innerHTML = '<i class="fas fa-play text-lg pl-1"></i>';
+                }
+            });
+
+            // ----------------------------------------------------
+            // 1. 初始化 Three.js 場景 (蒲公英背景)
+            // ----------------------------------------------------
+            const scene = new THREE.Scene();
+            
+            // 初始化相機
+            const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 1, 1000);
+            camera.position.z = 100;
+
+            // 初始化渲染器
+            const renderer = new THREE.WebGLRenderer({ alpha: true, antialias: true }); // alpha: true 讓背景透明
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            renderer.setPixelRatio(window.devicePixelRatio);
+            container.appendChild(renderer.domElement);
+
+            // 創建蒲公英種子材質 (用 Canvas 動態繪製，避免依賴外部圖片)
+            function createDandelionTexture() {
+                const canvas = document.createElement('canvas');
+                canvas.width = 128; // 放大解析度
+                canvas.height = 128;
+                const context = canvas.getContext('2d');
+                const center = 64;
+
+                // 繪製中心點 (種子)
+                context.beginPath();
+                context.arc(center, center, 5, 0, 2 * Math.PI, false);
+                context.fillStyle = 'rgba(255, 255, 255, 1.0)';
+                context.fill();
+
+                // 繪製絨毛 (發散線條)
+                context.strokeStyle = 'rgba(255, 255, 255, 0.8)';
+                context.lineWidth = 1.5;
+                for (let i = 0; i < 16; i++) {
+                    const angle = (i / 16) * Math.PI * 2;
+                    context.beginPath();
+                    context.moveTo(center, center);
+                    context.lineTo(center + Math.cos(angle) * 35, center + Math.sin(angle) * 35);
+                    context.stroke();
+                }
+
+                // 繪製外圈柔和光暈
+                const gradient = context.createRadialGradient(center, center, 5, center, center, 50);
+                gradient.addColorStop(0, 'rgba(255, 255, 255, 0.5)');
+                gradient.addColorStop(1, 'rgba(255, 255, 255, 0)');
+                context.fillStyle = gradient;
+                context.fillRect(0, 0, 128, 128);
+
+                const texture = new THREE.CanvasTexture(canvas);
+                return texture;
+            }
+
+            // 創建粒子系統
+            const particleCount = 300; // 增加粒子數量
+            const geometry = new THREE.BufferGeometry();
+            const positions = new Float32Array(particleCount * 3);
+            const speeds = new Float32Array(particleCount); // 每個粒子的速度
+
+            for (let i = 0; i < particleCount; i++) {
+                // 隨機分佈在空間中
+                positions[i * 3] = (Math.random() - 0.5) * 400; // x
+                positions[i * 3 + 1] = (Math.random() - 0.5) * 400; // y
+                positions[i * 3 + 2] = (Math.random() - 0.5) * 300; // z
+                
+                speeds[i] = 0.08 + Math.random() * 0.12; // 稍微加快速度
+            }
+
+            geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+
+            const material = new THREE.PointsMaterial({
+                size: 15, // 放大粒子尺寸
+                map: createDandelionTexture(),
+                transparent: true,
+                opacity: 0.9, // 增加不透明度
+                depthWrite: false, // 避免遮擋
+                blending: THREE.AdditiveBlending,
+                color: 0xc9bba6 // 調整為較明顯的暖灰金色，在淺色背景更清楚
+            });
+
+            const particles = new THREE.Points(geometry, material);
+            scene.add(particles);
+
+            // 動畫循環
+            function animate() {
+                requestAnimationFrame(animate);
+
+                const positions = particles.geometry.attributes.position.array;
+
+                for (let i = 0; i < particleCount; i++) {
+                    // 模擬風吹：向右上方飄動
+                    positions[i * 3] += speeds[i]; // x 軸移動
+                    positions[i * 3 + 1] += speeds[i] * 0.5; // y 軸移動
+                    
+                    // 隨機擺動 (模擬空氣流動)
+                    positions[i * 3] += Math.sin(Date.now() * 0.001 + i) * 0.03;
+
+                    // 邊界檢查：如果飄出畫面，重置到左下角
+                    if (positions[i * 3] > 200) positions[i * 3] = -200;
+                    if (positions[i * 3 + 1] > 200) positions[i * 3 + 1] = -200;
+                }
+
+                particles.geometry.attributes.position.needsUpdate = true;
+                
+                // 整體微旋轉
+                particles.rotation.y += 0.0005;
+                particles.rotation.z += 0.0002;
+
+                renderer.render(scene, camera);
+            }
+
+            animate();
+
+            // 視窗調整處理
+            window.addEventListener('resize', () => {
+                camera.aspect = window.innerWidth / window.innerHeight;
+                camera.updateProjectionMatrix();
+                renderer.setSize(window.innerWidth, window.innerHeight);
+            });
+
+            // ----------------------------------------------------
+            // 2. 燈箱 (Lightbox) 功能 - 點擊圖片放大
+            // ----------------------------------------------------
+            
+            // 建立 Lightbox DOM 元素
+            const lightbox = document.createElement('div');
+            lightbox.id = 'lightbox';
+            lightbox.className = 'fixed inset-0 z-[100] bg-black/90 hidden items-center justify-center p-4 cursor-zoom-out transition-opacity duration-300 opacity-0';
+            
+            // Lightbox 內容結構
+            lightbox.innerHTML = `
+                <img id="lightbox-img" src="" class="max-w-full max-h-full object-contain shadow-2xl rounded-sm cursor-default transform transition-transform duration-300 scale-95" alt="放大預覽">
+                <div class="absolute bottom-10 left-1/2 transform -translate-x-1/2 text-white/80 text-sm bg-black/50 px-4 py-2 rounded-full pointer-events-none backdrop-blur-sm shadow-lg whitespace-nowrap">
+                    <i class="fas fa-mouse-pointer mr-2"></i>點擊背景關閉視窗 / 對圖片按右鍵可另存
+                </div>
+            `;
+            document.body.appendChild(lightbox);
+
+            const lightboxImg = lightbox.querySelector('#lightbox-img');
+            const images = document.querySelectorAll('.zoom-img'); // 選擇所有標記為可放大的圖片
+
+            // 為每張圖片添加點擊事件
+            images.forEach(img => {
+                img.addEventListener('click', (e) => {
+                    e.stopPropagation(); // 防止冒泡
+                    const src = img.getAttribute('src');
+                    // 在預覽模式下，如果 src 是 placeholder，也讓它顯示
+                    if(src) {
+                        lightboxImg.src = src;
+                        lightbox.classList.remove('hidden');
+                        
+                        // 使用 AnimationFrame 確保 transition 效果
+                        requestAnimationFrame(() => {
+                            lightbox.classList.remove('opacity-0');
+                            lightboxImg.classList.remove('scale-95');
+                            lightboxImg.classList.add('scale-100');
+                        });
+                    }
+                });
+            });
+
+            // 點擊 Lightbox 背景關閉
+            lightbox.addEventListener('click', (e) => {
+                if (e.target !== lightboxImg) {
+                    lightbox.classList.add('opacity-0');
+                    lightboxImg.classList.remove('scale-100');
+                    lightboxImg.classList.add('scale-95');
+                    
+                    // 等待動畫結束後隱藏 DOM
+                    setTimeout(() => {
+                        lightbox.classList.add('hidden');
+                        lightboxImg.src = ''; // 清空 src
+                    }, 300);
+                }
+            });
+            
+            // 阻擋圖片本身的點擊冒泡
+            lightboxImg.addEventListener('click', (e) => {
+                e.stopPropagation();
+            });
+        });
+    </script>
+</body>
+</html>
